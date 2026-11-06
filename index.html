@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ลงเวลาทีมภาคสนาม</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#eef1f3; --ink:#14202b; --muted:#566573; --blue:#1d4f7c; --line:#c9d2d9; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+         background:var(--bg); color:var(--ink); font-family:'Noto Sans Thai',system-ui,sans-serif; }
+  main { width:100%; max-width:420px; }
+  h1 { font-size:1.6rem; margin:0 0 4px; }
+  p { margin:0 0 28px; color:var(--muted); }
+  a { display:block; padding:20px; margin-bottom:12px; border-radius:10px; text-decoration:none; font-weight:600; font-size:1.15rem; }
+  a small { display:block; font-weight:400; font-size:.9rem; margin-top:4px; }
+  .scan { background:var(--blue); color:#fff; }
+  .scan small { color:#cfe0ef; }
+  .reg { background:#fff; color:var(--ink); border:2px solid var(--line); }
+  .reg small { color:var(--muted); }
+  a:focus-visible { outline:3px solid #f2a900; outline-offset:2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ลงเวลาทีมภาคสนาม</h1>
+  <p>ถ่ายรูปหมู่ครั้งเดียว ระบบบันทึกทั้งทีม</p>
+  <a class="scan" href="scan.html">สแกนเข้า/เลิกงาน<small>ถ่ายรูปทีม ระบบรู้ว่าใครอยู่ในรูป</small></a>
+  <a class="reg" href="register.html">ลงทะเบียนใบหน้า<small>สำหรับแอดมิน ทำครั้งเดียวต่อคน</small></a>
+</main>
+</body>
+</html>
