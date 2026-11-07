@@ -184,14 +184,25 @@ async function startCamera(){
     v.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none';
   } catch(e){ chip('stModels','bad','เปิดกล้องไม่ได้ — อนุญาตการใช้กล้อง และต้องเปิดผ่าน https'); }
 }
+// แทนที่ฟังก์ชัน renderGps เดิมใน scan.html
 function renderGps(){
   if (!gps) return;
   let best = null;
-  sites.forEach(s => { const d = distKm(gps.lat,gps.lng,s.lat,s.lng); if(!best || d<best.d) best={ s, d }; });
+  sites.forEach(s => { 
+    const d = distKm(gps.lat, gps.lng, s.lat, s.lng); 
+    if(!best || d < best.d) best = { s, d }; 
+  });
+  
   gps.inSite = false;
-  if (!best) chip('stGps','warn','ได้ตำแหน่งแล้ว (ความแม่นยำ ±' + Math.round(gps.acc) + ' ม.) รอข้อมูลไซต์');
-  else if (best.d <= best.s.radiusKm) { gps.inSite = true; chip('stGps','ok','อยู่ในไซต์: ' + best.s.name + ' (ห่าง ' + Math.round(best.d*1000) + ' ม., ±' + Math.round(gps.acc) + ' ม.)'); }
-  else chip('stGps','bad','อยู่นอกรัศมี — ใกล้สุด ' + best.s.name + ' ห่าง ' + best.d.toFixed(2) + ' กม.');
+  if (!best) {
+    chip('stGps','warn','ได้ตำแหน่งแล้ว แต่ยังไม่มีข้อมูลไซต์ในระบบ');
+  } else if (best.d <= best.s.radiusKm) {
+    gps.inSite = true;
+    gps.activeSiteId = best.s.id; // บันทึก Site ID ที่ระบบเทียบให้อัตโนมัติ
+    chip('stGps','ok','อยู่ในไซต์: ' + best.s.name + ' (ห่าง ' + Math.round(best.d*1000) + ' ม.)');
+  } else {
+    chip('stGps','bad','อยู่นอกรัศมีไซต์ — ใกล้สุด ' + best.s.name + ' ห่าง ' + best.d.toFixed(2) + ' กม.');
+  }
   refreshShoot();
 }
 function startGps(){
