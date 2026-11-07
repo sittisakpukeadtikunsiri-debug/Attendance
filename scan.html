@@ -163,11 +163,15 @@ async function init(){
     ready.models = true; chip('stModels','ok','โมเดลใบหน้าพร้อม');
   } catch(e){ chip('stModels','bad','โหลดโมเดลไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วรีเฟรช'); return; }
 
+  let faces, cfg;
   try {
-    const [faces, cfg] = await Promise.all([
+    [faces, cfg] = await Promise.all([
       apiGet({ action:'getKnownFaces', token:pin }),
       apiGet(LINK_TOKEN ? { action:'getConfig', token:pin, lt:LINK_TOKEN } : { action:'getConfig', token:pin })
     ]);
+  } catch(e){ chip('stFaces','bad','ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจ URL ใน config.js'); return; }
+
+  try {
     if (faces.error || cfg.error) {
       const msg = faces.error || cfg.error;
       if (/PIN/.test(msg)) lsDel('teamPin');
@@ -181,7 +185,7 @@ async function init(){
     const labeled = faces.map(f => new faceapi.LabeledFaceDescriptors(f.label, f.descriptors.map(d => new Float32Array(d))));
     matcher = new faceapi.FaceMatcher(labeled, MATCH_THRESHOLD);
     ready.faces = true; chip('stFaces','ok','ฐานใบหน้า ' + faces.length + ' คน');
-  } catch(e){ chip('stFaces','bad','ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจ URL ใน config.js'); return; }
+  } catch(e){ chip('stFaces','bad','หน้าเว็บทำงานผิดพลาด: ' + (e && e.message ? e.message : e)); return; }
   refreshShoot();
 }
 
@@ -216,7 +220,7 @@ function renderGps(){
   const m = d => Math.round(d*1000);
   // อัปเดตข้อความในตัวเลือกให้เห็นระยะ (ไม่สลับลำดับ เพื่อไม่ให้รายการเลื่อนตอนผู้ใช้กำลังเลือก)
   const sel = $('siteSel');
-  (sel.options || []).forEach(o => { const r = rows.find(x => x.s.id === o.value); if (r) o.textContent = r.s.name + ' (ห่าง ' + m(r.d) + ' ม.)'; });
+  Array.from(sel.options || []).forEach(o => { const r = rows.find(x => x.s.id === o.value); if (r) o.textContent = r.s.name + ' (ห่าง ' + m(r.d) + ' ม.)'; });
   // ยังไม่ได้เลือกเอง: เลือกไซต์ที่อยู่ในรัศมีและใกล้สุดให้ก่อน (เปลี่ยนเองได้)
   if (!siteTouched && !siteId && rows.length && rows[0].d <= rows[0].s.radiusKm) { siteId = rows[0].s.id; sel.value = siteId; }
   const acc = '±' + Math.round(gps.acc) + ' ม.';
@@ -237,7 +241,7 @@ function startGps(){
   if (!navigator.geolocation) { chip('stGps','bad','อุปกรณ์ไม่รองรับ GPS'); return; }
   navigator.geolocation.watchPosition(p => {
     gps = { lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy };
-    renderGps();
+    try { renderGps(); } catch(e){ chip('stGps','bad','แสดงผลตำแหน่งผิดพลาด: ' + (e && e.message ? e.message : e)); }
   }, err => {
     chip('stGps','bad','ขอตำแหน่งไม่ได้ — เปิด GPS และอนุญาตเบราว์เซอร์');
   }, { enableHighAccuracy:true, maximumAge:10000, timeout:20000 });
