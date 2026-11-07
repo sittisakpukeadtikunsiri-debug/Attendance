@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เพิ่มไซต์งาน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#eef1f3; --ink:#14202b; --muted:#566573; --blue:#1d4f7c; --ok:#1e7a46; --warn:#b25e00; --err:#b3261e; --line:#c9d2d9; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:'Noto Sans Thai',system-ui,sans-serif; }
+  header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--ink); color:#fff; }
+  header a { color:#cfe0ef; font-size:.9rem; }
+  h1 { font-size:1.1rem; margin:0; }
+  h2 { font-size:1.05rem; margin:0 0 8px; }
+  main { max-width:560px; margin:0 auto; padding:12px; }
+  .chip { padding:8px 12px; border-radius:8px; background:#fff; border-left:6px solid var(--line); font-size:.95rem; margin-bottom:10px; }
+  .chip.ok { border-color:var(--ok); } .chip.warn { border-color:var(--warn); } .chip.bad { border-color:var(--err); }
+  .panel { background:#fff; border-radius:10px; padding:14px; margin-bottom:12px; }
+  label.f { display:block; font-weight:600; margin:12px 0 4px; }
+  input[type=text] { width:100%; font:inherit; padding:14px; border-radius:10px; border:2px solid var(--line); background:#fff; color:var(--ink); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .row { display:flex; gap:8px; margin-top:10px; }
+  button { font:inherit; font-weight:600; border-radius:10px; border:2px solid var(--line); background:#fff; color:var(--ink); padding:14px; cursor:pointer; }
+  button.primary { background:var(--blue); border-color:var(--blue); color:#fff; flex:1; font-size:1.1rem; }
+  button.go { background:var(--ok); border-color:var(--ok); color:#fff; flex:1; font-size:1.1rem; }
+  button.danger { border-color:var(--err); color:var(--err); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  button:focus-visible, input:focus-visible { outline:3px solid #f2a900; outline-offset:2px; }
+  .note { font-size:.9rem; color:var(--muted); margin:8px 0 0; }
+  .errText { color:var(--err); font-weight:600; } .okText { color:var(--ok); font-weight:600; } .warnText { color:var(--warn); font-weight:600; }
+  .site { border:2px solid var(--line); border-radius:10px; padding:12px; margin-top:10px; }
+  .site b { font-size:1.05rem; display:block; }
+  .site .meta { color:var(--muted); font-size:.9rem; margin:4px 0 8px; }
+  .site .row { margin-top:6px; }
+  .site button { padding:10px 14px; }
+  #busy { position:fixed; inset:0; background:rgba(20,32,43,.7); color:#fff; display:none; align-items:center; justify-content:center; font-size:1.1rem; z-index:5; padding:24px; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>เพิ่มไซต์งาน (แอดมิน)</h1>
+  <a href="index.html">เมนู</a>
+</header>
+<main>
+  <div class="chip" id="st">กำลังเริ่มระบบ...</div>
+
+  <section class="panel">
+    <h2 id="formTitle">เพิ่มไซต์ใหม่</h2>
+    <p class="note" style="margin-top:0">ยืนที่หน้างานจริง แล้วกด “ใช้ตำแหน่งปัจจุบัน” ระบบจะเทียบตำแหน่งตอนสแกนกับจุดนี้และรัศมีที่ตั้งไว้</p>
+
+    <label class="f" for="name">ชื่อไซต์</label>
+    <input type="text" id="name" maxlength="100" autocomplete="off" placeholder="เช่น โรงงาน A กาฬสินธุ์">
+
+    <div class="row"><button class="primary" id="btnGps">ใช้ตำแหน่งปัจจุบัน</button></div>
+    <p class="note" id="gpsInfo">ยังไม่ได้ตำแหน่ง (กรอกพิกัดเองก็ได้)</p>
+
+    <div class="two">
+      <div><label class="f" for="lat">ละติจูด (Lat)</label><input type="text" id="lat" inputmode="decimal" autocomplete="off" placeholder="16.498908"></div>
+      <div><label class="f" for="lng">ลองจิจูด (Lng)</label><input type="text" id="lng" inputmode="decimal" autocomplete="off" placeholder="103.584222"></div>
+    </div>
+
+    <label class="f" for="radius">รัศมีที่ถือว่าอยู่ในไซต์ (เมตร)</label>
+    <input type="text" id="radius" inputmode="numeric" autocomplete="off" value="300">
+    <p class="note">ช่วง 20 - 5,000 เมตร แนะนำ 200 - 500 ตามขนาดพื้นที่ GPS ในอาคารอาจคลาดเคลื่อนหลายสิบเมตร</p>
+
+    <div class="row">
+      <button class="go" id="btnSave" disabled>บันทึกไซต์</button>
+      <button id="btnCancel" style="display:none">ยกเลิกการแก้ไข</button>
+    </div>
+    <p class="note" id="msg"></p>
+  </section>
+
+  <section class="panel">
+    <h2>ไซต์ทั้งหมด</h2>
+    <div id="siteList"></div>
+  </section>
+</main>
+<div id="busy"><span id="busyText">กำลังทำงาน...</span></div>
+
+<script src="config.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let adminPin = '', sites = [], editingId = '', ready = false;
+
+function busy(on, text){ $('busy').style.display = on ? 'flex' : 'none'; if (text) $('busyText').textContent = text; }
+function chip(cls, text){ const el = $('st'); el.className = 'chip ' + cls; el.textContent = text; }
+function say(cls, text){ const m = $('msg'); m.textContent = text; m.className = 'note ' + cls; }
+async function apiGet(p){ const r = await fetch(API_URL + '?' + new URLSearchParams(p)); return r.json(); }
+async function apiPost(b){
+  const r = await fetch(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(b) });
+  return r.json();
+}
+// PIN แอดมินเก็บในหน่วยความจำของหน้านี้เท่านั้น (ไม่จำข้ามการเปิดหน้า)
+function pin(){ if (!adminPin) adminPin = (prompt('กรอก PIN แอดมิน') || '').trim(); return adminPin; }
+
+async function load(){
+  let cfg;
+  try { cfg = await apiGet({ action:'getConfig', token:adminPin }); }
+  catch(e){ chip('bad','ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจ URL ใน config.js'); return false; }
+  if (cfg.error) { chip('bad', cfg.error + (/PIN/.test(cfg.error) ? ' — รีเฟรชแล้วกรอกใหม่' : '')); return false; }
+  sites = cfg.sites || [];
+  renderList();
+  chip('ok', 'พร้อมใช้งาน — มี ' + sites.length + ' ไซต์');
+  return true;
+}
+
+function renderList(){
+  const box = $('siteList'); box.innerHTML = '';
+  if (!sites.length) { const p = document.createElement('p'); p.className = 'note'; p.textContent = 'ยังไม่มีไซต์ — เพิ่มไซต์แรกด้านบน'; box.appendChild(p); return; }
+  sites.forEach(s => {
+    const card = document.createElement('div'); card.className = 'site';
+    const name = document.createElement('b'); name.textContent = s.name;
+    const meta = document.createElement('div'); meta.className = 'meta';
+    meta.textContent = 'รัศมี ' + Math.round(s.radiusKm * 1000) + ' ม. · ';
+    const a = document.createElement('a'); a.href = 'https://www.google.com/maps?q=' + s.lat + ',' + s.lng;
+    a.target = '_blank'; a.rel = 'noopener'; a.textContent = s.lat.toFixed(6) + ', ' + s.lng.toFixed(6);
+    meta.appendChild(a);
+    const row = document.createElement('div'); row.className = 'row';
+    const be = document.createElement('button'); be.textContent = 'แก้ไข'; be.addEventListener('click', () => startEdit(s));
+    const bd = document.createElement('button'); bd.className = 'danger'; bd.textContent = 'ลบ'; bd.addEventListener('click', () => removeSite(s));
+    row.appendChild(be); row.appendChild(bd);
+    card.appendChild(name); card.appendChild(meta); card.appendChild(row);
+    box.appendChild(card);
+  });
+}
+
+function formOk(){
+  const lat = Number($('lat').value), lng = Number($('lng').value), r = Number($('radius').value);
+  return $('name').value.trim() && isFinite(lat) && isFinite(lng) && $('lat').value.trim() && $('lng').value.trim() &&
+    !(lat === 0 && lng === 0) && isFinite(r) && r >= 20 && r <= 5000;
+}
+function refresh(){ $('btnSave').disabled = !(ready && formOk()); }
+
+function resetForm(){
+  editingId = ''; $('formTitle').textContent = 'เพิ่มไซต์ใหม่';
+  $('name').value = ''; $('lat').value = ''; $('lng').value = ''; $('radius').value = '300';
+  $('gpsInfo').textContent = 'ยังไม่ได้ตำแหน่ง (กรอกพิกัดเองก็ได้)'; $('gpsInfo').className = 'note';
+  $('btnCancel').style.display = 'none'; refresh();
+}
+function startEdit(s){
+  editingId = s.id; $('formTitle').textContent = 'แก้ไขไซต์: ' + s.name;
+  $('name').value = s.name; $('lat').value = String(s.lat); $('lng').value = String(s.lng);
+  $('radius').value = String(Math.round(s.radiusKm * 1000));
+  $('gpsInfo').textContent = 'ใช้พิกัดเดิม — กด “ใช้ตำแหน่งปัจจุบัน” ถ้าต้องการย้ายจุด'; $('gpsInfo').className = 'note';
+  $('btnCancel').style.display = 'block'; say('', ''); refresh();
+  if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0);
+}
+
+function useGps(){
+  if (!navigator.geolocation) { $('gpsInfo').textContent = 'อุปกรณ์ไม่รองรับ GPS — กรอกพิกัดเอง'; $('gpsInfo').className = 'note errText'; return; }
+  $('gpsInfo').textContent = 'กำลังหาตำแหน่ง...'; $('gpsInfo').className = 'note';
+  navigator.geolocation.getCurrentPosition(p => {
+    $('lat').value = p.coords.latitude.toFixed(6); $('lng').value = p.coords.longitude.toFixed(6);
+    const acc = Math.round(p.coords.accuracy);
+    $('gpsInfo').textContent = 'ได้ตำแหน่งแล้ว (ความแม่นยำ ±' + acc + ' ม.)' + (acc > 50 ? ' — ค่อนข้างหยาบ ลองออกไปที่โล่งแล้วกดใหม่' : '');
+    $('gpsInfo').className = 'note ' + (acc > 50 ? 'warnText' : 'okText');
+    refresh();
+  }, () => {
+    $('gpsInfo').textContent = 'ขอตำแหน่งไม่ได้ — เปิด GPS และอนุญาตเบราว์เซอร์ หรือกรอกพิกัดเอง'; $('gpsInfo').className = 'note errText';
+  }, { enableHighAccuracy:true, timeout:20000, maximumAge:0 });
+}
+
+async function save(){
+  if (!formOk()) return;
+  const body = { action:'saveSite', token:adminPin, name:$('name').value.trim(),
+    lat:Number($('lat').value), lng:Number($('lng').value), radiusKm:Number($('radius').value) / 1000 };
+  if (editingId) body.id = editingId;
+  busy(true, 'กำลังบันทึก...');
+  let res;
+  try { res = await apiPost(body); } catch(e){ res = { error:'ส่งไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง' }; }
+  busy(false);
+  if (res.error) { say('errText', res.error); return; }
+  say('okText', res.message);
+  resetForm();
+  await load();
+}
+
+async function removeSite(s){
+  if (!confirm('ลบไซต์ "' + s.name + '" ?\n(ประวัติการลงเวลาเดิมยังอยู่ แต่จะเลือกไซต์นี้สแกนไม่ได้อีก)')) return;
+  busy(true, 'กำลังลบ...');
+  let res;
+  try { res = await apiPost({ action:'deleteSite', token:adminPin, id:s.id }); } catch(e){ res = { error:'ส่งไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง' }; }
+  busy(false);
+  if (res.error) { say('errText', res.error); return; }
+  say('okText', res.message);
+  if (editingId === s.id) resetForm();
+  await load();
+}
+
+$('btnGps').addEventListener('click', useGps);
+$('btnSave').addEventListener('click', save);
+$('btnCancel').addEventListener('click', () => { resetForm(); say('', ''); });
+['name','lat','lng','radius'].forEach(id => $(id).addEventListener('input', refresh));
+
+(async function init(){
+  if (!pin()) { chip('bad','ต้องกรอก PIN แอดมิน — รีเฟรชหน้าเพื่อกรอกใหม่'); return; }
+  ready = await load(); refresh();
+})();
+</script>
+</body>
+</html>

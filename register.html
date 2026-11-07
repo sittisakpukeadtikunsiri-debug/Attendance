@@ -49,9 +49,6 @@
   <label class="f" for="name">ชื่อที่ใช้ในรายงาน (ชื่อเดียวกับที่จะแสดงในไลน์)</label>
   <input type="text" id="name" maxlength="60" autocomplete="off" placeholder="เช่น สมชาย">
 
-  <label class="f" for="site">ไซต์ประจำ</label>
-  <select id="site"></select>
-
   <div class="stage"><video id="video" playsinline muted autoplay></video></div>
   <p class="note">ถ่าย 3 - 5 ภาพ: หน้าตรง, เอียงซ้ายเล็กน้อย, เอียงขวาเล็กน้อย, และถ้าต้องใช้หมวก/แว่นตอนทำงานให้ถ่ายแบบนั้นด้วย ให้เห็นหน้าคนเดียวในเฟรม</p>
   <div class="row">
@@ -106,9 +103,6 @@ async function init(){
   try {
     const cfg = await apiGet({ action:'getConfig', token:adminPin });
     if (cfg.error) { chip('bad', cfg.error + (/PIN/.test(cfg.error) ? ' — รีเฟรชแล้วกรอกใหม่' : '')); return; }
-    const sel = $('site');
-    (cfg.sites || []).forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o); });
-    if (!sel.options.length) { chip('warn','ยังไม่มีไซต์ในชีต Sites'); return; }
   } catch(e){ chip('bad','ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจ URL ใน config.js'); return; }
   ready = true; chip('ok','พร้อมถ่ายภาพ'); refresh();
 }
@@ -158,7 +152,7 @@ async function save(){
   busy(true,'กำลังบันทึก...');
   let res;
   try {
-    res = await apiPost({ action:'registerUser', token:adminPin, name, siteId:$('site').value, descriptors:shots.map(s => s.desc) });
+    res = await apiPost({ action:'registerUser', token:adminPin, name, descriptors:shots.map(s => s.desc) });
   } catch(e){ res = { error:'ส่งไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง' }; }
   busy(false);
   if (res.error) { say('<span class="errText">' + esc(res.error) + '</span>'); return; }

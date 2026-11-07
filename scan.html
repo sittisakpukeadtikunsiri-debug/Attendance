@@ -28,6 +28,8 @@
   button.go { background:var(--ok); border-color:var(--ok); color:#fff; flex:1; }
   button:disabled { opacity:.45; cursor:not-allowed; }
   button:focus-visible, select:focus-visible { outline:3px solid #f2a900; outline-offset:2px; }
+  .fieldLabel { display:block; font-weight:600; margin:2px 0 4px; }
+  #siteSel { width:100%; margin-bottom:10px; }
   .types { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px; }
   .tbtn { padding:16px 8px; font-size:1.1rem; border-color:var(--blue); color:var(--blue); }
   .tbtn.ot { border-color:var(--warn); color:var(--warn); }
@@ -56,7 +58,11 @@
     <div class="chip" id="stModels">โหลดโมเดลใบหน้า...</div>
     <div class="chip" id="stFaces">รอข้อมูลใบหน้า...</div>
     <div class="chip" id="stGps">ค้นหาตำแหน่ง GPS...</div>
+    <div class="chip" id="stLine">ตรวจลิงก์ไลน์...</div>
   </div>
+
+  <label class="fieldLabel" for="siteSel">ตอนนี้อยู่หน้างานที่ไหน</label>
+  <select id="siteSel" aria-label="เลือกไซต์งาน"><option value="">กำลังโหลดไซต์...</option></select>
 
   <div class="types" role="group" aria-label="ประเภทการลงเวลา">
     <button type="button" class="tbtn" id="type_IN" aria-pressed="false">เข้างาน</button>
@@ -110,6 +116,8 @@ let gps = null, ready = { models:false, faces:false }, shotData = null, timer = 
 const TYPE_TH = { IN:'เข้างาน', OUT:'ออกงาน', OT_IN:'เริ่มโอที', OT_OUT:'เลิกโอที' };
 const PREREQ_TH = { OUT:'เข้างาน', OT_OUT:'เริ่มโอที' };
 let chosen = '';   // ผู้ใช้ต้องเลือกเองทุกครั้ง ไม่มีค่าเริ่มต้น
+const LINK_TOKEN = new URLSearchParams(location.search || '').get('t') || '';   // ลิงก์ส่วนตัวที่บอทส่งให้ในไลน์
+let siteId = '', siteTouched = false;
 
 function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
 function lsSet(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
@@ -139,6 +147,7 @@ function distKm(a,b,c,d){
 
 // ---------- เริ่มระบบ ----------
 async function init(){
+  setLineChip();
   const pin = getPin();
   if (!pin) { chip('stFaces','bad','ต้องกรอก PIN ทีม — รีเฟรชหน้าเพื่อกรอกใหม่'); return; }
 
@@ -157,7 +166,7 @@ async function init(){
   try {
     const [faces, cfg] = await Promise.all([
       apiGet({ action:'getKnownFaces', token:pin }),
-      apiGet({ action:'getConfig', token:pin })
+      apiGet(LINK_TOKEN ? { action:'getConfig', token:pin, lt:LINK_TOKEN } : { action:'getConfig', token:pin })
     ]);
     if (faces.error || cfg.error) {
       const msg = faces.error || cfg.error;
@@ -166,6 +175,7 @@ async function init(){
       return;
     }
     sites = cfg.sites || [];
+    buildSiteSelect(); setLineChip(!!cfg.linked);
     renderGps();
     if (!faces.length) { chip('stFaces','warn','ยังไม่มีใบหน้าในระบบ — ให้แอดมินลงทะเบียนก่อน'); return; }
     const labeled = faces.map(f => new faceapi.LabeledFaceDescriptors(f.label, f.descriptors.map(d => new Float32Array(d))));
@@ -184,23 +194,42 @@ async function startCamera(){
     v.style.transform = facing === 'user' ? 'scaleX(-1)' : 'none';
   } catch(e){ chip('stModels','bad','เปิดกล้องไม่ได้ — อนุญาตการใช้กล้อง และต้องเปิดผ่าน https'); }
 }
+function setLineChip(linked){
+  if (!LINK_TOKEN) { chip('stLine','warn','เปิดจากลิงก์ตรง — จะไม่มีสรุปส่งกลับให้คุณในไลน์ (กดปุ่ม "สแกน" ในเมนูไลน์เพื่อรับลิงก์ส่วนตัว)'); return; }
+  if (linked === undefined) { chip('stLine','','กำลังตรวจลิงก์ไลน์...'); return; }
+  if (linked) chip('stLine','ok','สรุปจะส่งกลับเข้าแชทไลน์ส่วนตัวของคุณ');
+  else chip('stLine','bad','ลิงก์ไลน์หมดอายุ — กดปุ่ม "สแกน" ในเมนูไลน์เพื่อรับลิงก์ใหม่');
+}
+function buildSiteSelect(){
+  const sel = $('siteSel'); sel.innerHTML = '';
+  const first = document.createElement('option'); first.value = '';
+  first.textContent = sites.length ? 'เลือกไซต์ที่คุณอยู่' : 'ยังไม่มีไซต์ — ให้แอดมินเพิ่มไซต์ก่อน';
+  sel.appendChild(first);
+  sites.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o); });
+  if (siteId && !sites.some(s => s.id === siteId)) siteId = '';
+  sel.value = siteId;
+}
 function renderGps(){
   if (!gps) return;
-  let best = null;
-  sites.forEach(s => { 
-    const d = distKm(gps.lat, gps.lng, s.lat, s.lng); 
-    if(!best || d < best.d) best = { s, d }; 
-  });
-  
   gps.inSite = false;
-  if (!best) {
-    chip('stGps','warn','ได้ตำแหน่งแล้ว แต่ยังไม่มีข้อมูลไซต์ในระบบ');
-  } else if (best.d <= best.s.radiusKm) {
+  const rows = sites.map(s => ({ s, d: distKm(gps.lat, gps.lng, s.lat, s.lng) })).sort((a,b) => a.d - b.d);
+  const m = d => Math.round(d*1000);
+  // อัปเดตข้อความในตัวเลือกให้เห็นระยะ (ไม่สลับลำดับ เพื่อไม่ให้รายการเลื่อนตอนผู้ใช้กำลังเลือก)
+  const sel = $('siteSel');
+  (sel.options || []).forEach(o => { const r = rows.find(x => x.s.id === o.value); if (r) o.textContent = r.s.name + ' (ห่าง ' + m(r.d) + ' ม.)'; });
+  // ยังไม่ได้เลือกเอง: เลือกไซต์ที่อยู่ในรัศมีและใกล้สุดให้ก่อน (เปลี่ยนเองได้)
+  if (!siteTouched && !siteId && rows.length && rows[0].d <= rows[0].s.radiusKm) { siteId = rows[0].s.id; sel.value = siteId; }
+  const acc = '±' + Math.round(gps.acc) + ' ม.';
+  if (!rows.length) { chip('stGps','warn','ได้ตำแหน่งแล้ว (' + acc + ') รอข้อมูลไซต์'); refreshShoot(); return; }
+  const cur = rows.find(x => x.s.id === siteId);
+  if (!cur) {
+    chip('stGps','warn','เลือกไซต์ที่คุณอยู่ (ใกล้สุด: ' + rows[0].s.name + ' ห่าง ' + m(rows[0].d) + ' ม.)');
+  } else if (cur.d <= cur.s.radiusKm) {
     gps.inSite = true;
-    gps.activeSiteId = best.s.id; // บันทึก Site ID อัตโนมัติจากระบบ Add Site
-    chip('stGps','ok','อยู่ในไซต์: ' + best.s.name + ' (ห่าง ' + Math.round(best.d*1000) + ' ม.)');
+    chip('stGps','ok','อยู่ในไซต์: ' + cur.s.name + ' (ห่าง ' + m(cur.d) + ' ม. จากรัศมี ' + m(cur.s.radiusKm) + ' ม., ' + acc + ')');
   } else {
-    chip('stGps','bad','อยู่นอกรัศมีไซต์ — ใกล้สุด ' + best.s.name + ' ห่าง ' + best.d.toFixed(2) + ' กม.');
+    const other = rows[0].s.id !== siteId && rows[0].d <= rows[0].s.radiusKm ? ' — คุณอยู่ใกล้ ' + rows[0].s.name + ' ลองเปลี่ยนไซต์' : '';
+    chip('stGps','bad','อยู่นอกรัศมีของ ' + cur.s.name + ' (ห่าง ' + m(cur.d) + ' ม. เกินรัศมี ' + m(cur.s.radiusKm) + ' ม.)' + other);
   }
   refreshShoot();
 }
@@ -214,7 +243,8 @@ function startGps(){
   }, { enableHighAccuracy:true, maximumAge:10000, timeout:20000 });
 }
 function refreshShoot(){
-  $('btnShoot').disabled = !(ready.models && ready.faces && gps && gps.inSite && chosen);$('typeHint').textContent = chosen ? ('ประเภท: ' + TYPE_TH[chosen]) : 'เลือกประเภทก่อนถ่ายรูป';
+  $('btnShoot').disabled = !(ready.models && ready.faces && gps && gps.inSite && chosen);
+  $('typeHint').textContent = chosen ? ('ประเภท: ' + TYPE_TH[chosen]) : 'เลือกประเภทก่อนถ่ายรูป';
   $('typeHint').className = 'note' + (chosen ? '' : ' warnText');
 }
 function paintTypes(){
@@ -225,7 +255,7 @@ function paintTypes(){
   });
 }
 function setType(t){ chosen = t; paintTypes(); refreshShoot(); }
-function lockTypes(on){ Object.keys(TYPE_TH).forEach(t => { $('type_' + t).disabled = on; }); }
+function lockTypes(on){ Object.keys(TYPE_TH).forEach(t => { $('type_' + t).disabled = on; }); $('siteSel').disabled = on; }
 
 // ---------- ถ่าย + วิเคราะห์ ----------
 async function shoot(){
@@ -252,4 +282,119 @@ async function shoot(){
   const best = {};
   results.forEach((r,i) => { if (r.small) r.label='unknown';
     if (r.label!=='unknown' && (!(r.label in best) || r.distance < results[best[r.label]].distance)) best[r.label]=i; });
-  results.forEach((r,i) => { if (r.label!=='unknown' && best[r.label]!==i) r.label='unknown';
+  results.forEach((r,i) => { if (r.label!=='unknown' && best[r.label]!==i) r.label='unknown'; });
+
+  // วาดผลบนรูปที่ถ่าย
+  const shot = $('shot'); shot.width=w; shot.height=h;
+  const ctx = shot.getContext('2d'); ctx.drawImage(c,0,0);
+  const fs = Math.round(Math.max(16, w/45)); ctx.lineWidth = Math.max(3, w/320); ctx.font = '600 ' + fs + 'px sans-serif';
+  results.forEach(r => {
+    const ok = r.label !== 'unknown', col = ok ? '#1e7a46' : (r.small ? '#b25e00' : '#b3261e');
+    const b = r.box; ctx.strokeStyle = col; ctx.strokeRect(b.x,b.y,b.width,b.height);
+    const text = ok ? r.label : (r.small ? 'ไกลเกินไป' : 'ไม่รู้จัก');
+    const tw = ctx.measureText(text).width + 12, th = fs + 10;
+    ctx.fillStyle = col; ctx.fillRect(b.x, Math.max(0,b.y-th), tw, th);
+    ctx.fillStyle = '#fff'; ctx.fillText(text, b.x+6, Math.max(th-8, b.y-8));
+  });
+  $('video').style.display='none'; shot.style.display='block'; $('rowShoot').style.display='none';
+
+  shotData = {
+    names: results.filter(r => r.label!=='unknown').map(r => r.label),
+    unknown: results.filter(r => r.label==='unknown').length,
+    small: results.filter(r => r.small).length,
+    photo: c.toDataURL('image/jpeg', 0.7)
+  };
+  showResult();
+}
+
+function showResult(){
+  const d = shotData, box = $('names'); box.innerHTML='';
+  $('resultTitle').textContent = 'ผลการสแกน: ' + TYPE_TH[chosen]; lockTypes(true);
+  d.names.forEach(n => {
+    const lb = document.createElement('label'), cb = document.createElement('input');
+    cb.type='checkbox'; cb.checked=true; cb.value=n; cb.addEventListener('change', () => { stopCountdown('แก้รายชื่อแล้ว — กด “ส่งบันทึก” เมื่อพร้อม'); updateSend(); });
+    lb.appendChild(cb); lb.appendChild(document.createTextNode(n)); box.appendChild(lb);
+  });
+  let note = 'พบ ' + (d.names.length + d.unknown) + ' หน้า, รู้จัก ' + d.names.length + ' คน';
+  if (d.unknown) note += ' — ใบหน้าที่ไม่รู้จัก ' + d.unknown + ' คน' + (d.small ? ' (ไกลเกินไป ' + d.small + ' คน)' : '') + ' จะไม่ถูกบันทึก';
+  $('resultNote').textContent = note;
+  $('resultNote').className = 'note' + (d.unknown ? ' warnText' : '');
+  $('result').style.display='block'; $('done').style.display='none';
+  updateSend();
+  if (!d.names.length) { $('countdown').textContent = 'ไม่พบใบหน้าที่รู้จัก — ถ่ายใหม่ให้ใกล้และเห็นหน้าชัดขึ้น'; return; }
+  if (d.unknown === 0) startCountdown(); else $('countdown').textContent = 'มีใบหน้าที่ไม่รู้จัก ระบบจึงไม่ส่งอัตโนมัติ ตรวจรายชื่อแล้วกด “ส่งบันทึก”';
+}
+function checkedNames(){ return [...$('names').querySelectorAll('input:checked')].map(i => i.value); }
+function updateSend(){ $('btnSend').disabled = checkedNames().length === 0; }
+
+function startCountdown(){
+  let n = COUNTDOWN_SEC; stopCountdown();
+  const tick = () => {
+    $('countdown').textContent = 'ส่งอัตโนมัติใน ' + n + ' วินาที (กด “ถ่ายใหม่” เพื่อยกเลิก)';
+    if (n-- <= 0) { stopCountdown(''); send(); }
+  };
+  tick(); timer = setInterval(tick, 1000);
+}
+function stopCountdown(msg){ if (timer) { clearInterval(timer); timer=null; } if (msg !== undefined) $('countdown').textContent = msg; }
+
+// ---------- ส่ง ----------
+let sending = false;
+async function send(){
+  const names = checkedNames();
+  if (sending || !names.length || !shotData || !gps || !siteId) return;
+  sending = true; stopCountdown('');
+  busy(true,'กำลังบันทึก...');
+  let res;
+  try {
+    res = await apiPost({ action:'logAttendanceBatch', token:getPin(), names, lat:gps.lat, lng:gps.lng,
+      accuracy:gps.acc, type:chosen, siteId, lineToken:LINK_TOKEN, unknownCount:shotData.unknown, photoBase64:shotData.photo });
+  } catch(e){ res = { error:'ส่งไม่สำเร็จ (สัญญาณอินเทอร์เน็ต) กด “ส่งบันทึก” อีกครั้ง' }; }
+  busy(false); sending = false;
+  if (res.error) {
+    $('countdown').innerHTML = '<span class="errText">' + esc(res.error) + '</span>';
+    return;
+  }
+  showDone(res);
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function showDone(r){
+  $('result').style.display='none'; $('done').style.display='block';
+  const label = t => TYPE_TH[t] || t;
+  let html = '';
+  if (r.recorded && r.recorded.length) {
+    $('doneTitle').textContent = 'บันทึก' + label(r.type) + ' ' + r.recorded.length + ' คน' + (r.siteName ? ' — ' + r.siteName : '');
+    html += r.recorded.map(x => '<p class="okText">' + esc(x.name) + ' · ' + label(x.type) + '</p>').join('');
+  } else {
+    $('doneTitle').textContent = r.message || 'ไม่มีรายการใหม่';
+  }
+  if (r.warnings && r.warnings.length && PREREQ_TH[r.type]) html += '<p class="warnText">ไม่พบ' + PREREQ_TH[r.type] + 'ก่อนหน้า: ' + esc(r.warnings.join(', ')) + '</p>';
+  if (r.skipped && r.skipped.length) html += '<p class="note">ข้าม (สแกนซ้ำเร็วเกินไป): ' + esc(r.skipped.join(', ')) + '</p>';
+  if (r.rejected && r.rejected.length) html += '<p class="errText">ไม่พบในระบบ: ' + esc(r.rejected.join(', ')) + '</p>';
+  if (r.line === 'sent' && r.lineTo === 'user') html += '<p class="note">ส่งสรุปเข้าแชทไลน์ส่วนตัวกับบอทแล้ว — ไปกด “ถูกต้อง” ที่นั่น</p>';
+  else if (r.line === 'sent') html += '<p class="note">ส่งสรุปเข้ากลุ่มไลน์ของไซต์แล้ว — ให้กดยืนยันในกลุ่ม</p>';
+  else if (r.line && r.line !== 'skipped') html += '<p class="warnText">บันทึกสำเร็จ แต่ส่งไลน์ไม่สำเร็จ (' + esc(r.line) + ') — ตรวจว่าเพิ่มบอทเป็นเพื่อนและไม่ได้บล็อก</p>';
+  if (r.linkInvalid) html += '<p class="warnText">ลิงก์ไลน์หมดอายุ จึงไม่ได้ส่งสรุปถึงคุณ (ข้อมูลบันทึกแล้ว) — กดปุ่ม “สแกน” ในเมนูไลน์เพื่อรับลิงก์ใหม่</p>';
+  $('doneBody').innerHTML = html;
+}
+
+function reset(clearType){
+  stopCountdown(''); shotData = null; lockTypes(false);
+  if (clearType) { chosen = ''; paintTypes(); }
+  $('shot').style.display='none'; $('video').style.display='block'; $('rowShoot').style.display='flex';
+  $('result').style.display='none'; $('done').style.display='none';
+  refreshShoot();
+}
+
+$('btnShoot').addEventListener('click', shoot);
+$('btnRetake').addEventListener('click', () => reset(false));
+$('btnAgain').addEventListener('click', () => reset(true));
+Object.keys(TYPE_TH).forEach(t => $('type_' + t).addEventListener('click', () => setType(t)));
+$('btnSend').addEventListener('click', send);
+$('siteSel').addEventListener('change', () => { siteTouched = true; siteId = $('siteSel').value; renderGps(); });
+$('btnFlip').addEventListener('click', () => { facing = facing === 'user' ? 'environment' : 'user'; startCamera(); });
+$('changePin').addEventListener('click', e => { e.preventDefault(); lsDel('teamPin'); location.reload(); });
+init();
+</script>
+</body>
+</html>
