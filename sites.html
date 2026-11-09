@@ -88,9 +88,15 @@ let adminPin = '', sites = [], editingId = '', ready = false;
 function busy(on, text){ $('busy').style.display = on ? 'flex' : 'none'; if (text) $('busyText').textContent = text; }
 function chip(cls, text){ const el = $('st'); el.className = 'chip ' + cls; el.textContent = text; }
 function say(cls, text){ const m = $('msg'); m.textContent = text; m.className = 'note ' + cls; }
-async function apiGet(p){ const r = await fetch(API_URL + '?' + new URLSearchParams(p)); return r.json(); }
+function fetchT(url, opts, ms){            // จำกัดเวลารอ: สัญญาณอ่อนแล้วคำขอค้าง จะไม่หมุนค้างตลอดไป
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    fetch(url, opts).then(r => { clearTimeout(timer); resolve(r); }, e => { clearTimeout(timer); reject(e); });
+  });
+}
+async function apiGet(p){ const r = await fetchT(API_URL + '?' + new URLSearchParams(p), undefined, 30000); return r.json(); }
 async function apiPost(b){
-  const r = await fetch(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(b) });
+  const r = await fetchT(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(b) }, 60000);
   return r.json();
 }
 // PIN แอดมินเก็บในหน่วยความจำของหน้านี้เท่านั้น (ไม่จำข้ามการเปิดหน้า)
@@ -99,7 +105,7 @@ function pin(){ if (!adminPin) adminPin = (prompt('กรอก PIN แอดม
 async function load(){
   let cfg;
   try { cfg = await apiGet({ action:'getConfig', token:adminPin }); }
-  catch(e){ chip('bad','ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจ URL ใน config.js'); return false; }
+  catch(e){ chip('bad','ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสัญญาณอินเทอร์เน็ต หรือ URL ใน config.js'); return false; }
   if (cfg.error) { chip('bad', cfg.error + (/PIN/.test(cfg.error) ? ' — รีเฟรชแล้วกรอกใหม่' : '')); return false; }
   sites = cfg.sites || [];
   renderList();
