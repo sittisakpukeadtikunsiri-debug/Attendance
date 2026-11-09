@@ -131,12 +131,18 @@ function getPin(){
   if (!pin) { pin = (prompt('กรอก PIN ทีม') || '').trim(); if (pin) lsSet('teamPin', pin); }
   return pin;
 }
+function fetchT(url, opts, ms){            // จำกัดเวลารอ: สัญญาณอ่อนแล้วคำขอค้าง จะไม่หมุนค้างตลอดไป
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    fetch(url, opts).then(r => { clearTimeout(timer); resolve(r); }, e => { clearTimeout(timer); reject(e); });
+  });
+}
 async function apiGet(params){
-  const r = await fetch(API_URL + '?' + new URLSearchParams(params));
+  const r = await fetchT(API_URL + '?' + new URLSearchParams(params), undefined, 30000);
   return r.json();
 }
 async function apiPost(body){
-  const r = await fetch(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  const r = await fetchT(API_URL, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(body) }, 60000);
   return r.json();
 }
 function distKm(a,b,c,d){
@@ -169,7 +175,7 @@ async function init(){
       apiGet({ action:'getKnownFaces', token:pin }),
       apiGet(LINK_TOKEN ? { action:'getConfig', token:pin, lt:LINK_TOKEN } : { action:'getConfig', token:pin })
     ]);
-  } catch(e){ chip('stFaces','bad','ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจ URL ใน config.js'); return; }
+  } catch(e){ chip('stFaces','bad','ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสัญญาณอินเทอร์เน็ต หรือ URL ใน config.js'); return; }
 
   try {
     if (faces.error || cfg.error) {
@@ -352,7 +358,7 @@ async function send(){
   try {
     res = await apiPost({ action:'logAttendanceBatch', token:getPin(), names, lat:gps.lat, lng:gps.lng,
       accuracy:gps.acc, type:chosen, siteId, lineToken:LINK_TOKEN, unknownCount:shotData.unknown, photoBase64:shotData.photo });
-  } catch(e){ res = { error:'ส่งไม่สำเร็จ (สัญญาณอินเทอร์เน็ต) กด “ส่งบันทึก” อีกครั้ง' }; }
+  } catch(e){ res = { error:'ส่งไม่สำเร็จหรือสัญญาณช้า — กด “ส่งบันทึก” อีกครั้งได้ (ระบบกันบันทึกซ้ำให้อัตโนมัติ)' }; }
   busy(false); sending = false;
   if (res.error) {
     $('countdown').innerHTML = '<span class="errText">' + esc(res.error) + '</span>';
